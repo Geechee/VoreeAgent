@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     embedding_model: str = "voyage-3.5"
     embedding_dim: int = 1024  # voyage-3.5 default output dimension
 
+    # Discord bot
+    discord_bot_token: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @model_validator(mode="after")

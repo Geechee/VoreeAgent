@@ -20,6 +20,7 @@ from critic import critique
 from db import check_connection, get_db, init_db
 from memory import retrieve_memories, store_memory
 from rag import ingest_document, retrieve_chunks
+from discord_bot import start_discord_bot
 from scheduler import start_scheduler, stop_scheduler
 from webhooks import fire_task_completed
 from worker import submit_task
@@ -30,6 +31,7 @@ from workflows import BUILTIN_WORKFLOWS, select_workflow
 async def lifespan(app: FastAPI):
     init_db()
     start_scheduler()
+    start_discord_bot()
     yield
     stop_scheduler()
 
