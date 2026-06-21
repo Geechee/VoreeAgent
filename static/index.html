@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VOREE Agent Dashboard</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --border: #2a2d3a;
+    --text: #e1e4ed;
+    --muted: #8b8fa3;
+    --accent: #6c5ce7;
+    --accent-hover: #7c6cf7;
+    --green: #00b894;
+    --red: #e17055;
+    --yellow: #fdcb6e;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 24px; display: flex; align-items: center; gap: 16px; }
+  header h1 { font-size: 20px; font-weight: 600; }
+  header .version { color: var(--muted); font-size: 13px; }
+  header .key-input { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  header .key-input input { padding: 6px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 12px; width: 220px; font-family: monospace; }
+  header .key-input input:focus { border-color: var(--accent); outline: none; }
+  header .status { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--green); }
+  header .status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); background: var(--surface); padding: 0 24px; }
+  .tab { padding: 12px 20px; cursor: pointer; color: var(--muted); font-size: 14px; border-bottom: 2px solid transparent; transition: all 0.2s; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .container { max-width: 960px; margin: 0 auto; padding: 24px; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .input-row { display: flex; gap: 10px; margin-bottom: 20px; }
+  .input-row input, .input-row select { flex: 1; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 14px; outline: none; }
+  .input-row input:focus { border-color: var(--accent); }
+  .input-row select { flex: 0 0 auto; width: 140px; }
+  button { padding: 10px 20px; background: var(--accent); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s; }
+  button:hover { background: var(--accent-hover); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.secondary { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+  button.secondary:hover { border-color: var(--accent); }
+  button.danger { background: var(--red); }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 12px; }
+  .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .card-header h3 { font-size: 15px; font-weight: 500; }
+  .badge { font-size: 11px; padding: 3px 8px; border-radius: 12px; font-weight: 500; }
+  .badge-workflow { background: #6c5ce722; color: var(--accent); }
+  .badge-score { background: #00b89422; color: var(--green); }
+  .badge-score.low { background: #e1705522; color: var(--red); }
+  .meta { font-size: 12px; color: var(--muted); }
+
+  .result-box { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-top: 12px; white-space: pre-wrap; font-size: 13px; line-height: 1.6; max-height: 400px; overflow-y: auto; }
+
+  .chat-messages { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; max-height: 500px; overflow-y: auto; }
+  .chat-msg { padding: 12px 16px; border-radius: 10px; max-width: 85%; font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
+  .chat-msg.user { background: var(--accent); color: white; align-self: flex-end; }
+  .chat-msg.assistant { background: var(--surface); border: 1px solid var(--border); align-self: flex-start; }
+
+  .session-item { cursor: pointer; transition: border-color 0.2s; }
+  .session-item:hover { border-color: var(--accent); }
+  .session-item.active { border-color: var(--accent); }
+
+  .memory-content { font-size: 13px; line-height: 1.5; }
+  .memory-actions { display: flex; gap: 8px; margin-top: 8px; }
+
+  .empty { text-align: center; color: var(--muted); padding: 40px; font-size: 14px; }
+  .loading { color: var(--muted); font-style: italic; }
+
+  .stream-indicator { display: inline-block; width: 8px; height: 16px; background: var(--accent); animation: blink 0.6s infinite; margin-left: 2px; vertical-align: text-bottom; }
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+
+  .search-row { display: flex; gap: 10px; margin-bottom: 16px; }
+  .search-row input { flex: 1; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 14px; outline: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>VOREE</h1>
+  <span class="version">Agent Framework v1.1</span>
+  <div class="key-input">
+    <input type="password" id="api-key-input" placeholder="API Key" />
+  </div>
+  <div class="status" id="health-status"><span class="dot"></span> Connected</div>
+</header>
+
+<div class="tabs">
+  <div class="tab active" data-panel="tasks">Tasks</div>
+  <div class="tab" data-panel="sessions">Sessions</div>
+  <div class="tab" data-panel="memories">Memories</div>
+</div>
+
+<!-- Tasks Panel -->
+<div class="container">
+<div class="panel active" id="panel-tasks">
+  <div class="input-row">
+    <input type="text" id="task-input" placeholder="Enter a task..." />
+    <select id="task-mode">
+      <option value="standard">Standard</option>
+      <option value="stream">Stream</option>
+    </select>
+    <button onclick="submitTask()" id="task-btn">Run</button>
+  </div>
+  <div id="task-result"></div>
+  <h3 style="margin: 20px 0 12px; font-size: 14px; color: var(--muted);">History</h3>
+  <div id="task-list"></div>
+</div>
+
+<!-- Sessions Panel -->
+<div class="panel" id="panel-sessions">
+  <div style="display: flex; gap: 16px; height: 600px;">
+    <div style="width: 280px; overflow-y: auto; flex-shrink: 0;">
+      <button onclick="newSession()" style="width: 100%; margin-bottom: 12px;">+ New Session</button>
+      <div id="session-list"></div>
+    </div>
+    <div style="flex: 1; display: flex; flex-direction: column;">
+      <div class="chat-messages" id="chat-messages">
+        <div class="empty">Select or start a session</div>
+      </div>
+      <div class="input-row" style="margin-bottom: 0;">
+        <input type="text" id="chat-input" placeholder="Type a message..." disabled />
+        <button onclick="sendReply()" id="chat-btn" disabled>Send</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Memories Panel -->
+<div class="panel" id="panel-memories">
+  <div class="input-row">
+    <input type="text" id="memory-input" placeholder="Store a new memory..." />
+    <button onclick="addMemory()">Save</button>
+  </div>
+  <div class="search-row">
+    <input type="text" id="memory-search" placeholder="Semantic search memories..." />
+    <button class="secondary" onclick="searchMemories()">Search</button>
+  </div>
+  <div id="memory-list"></div>
+</div>
+</div>
+
+<script>
+const API = '';
+
+// API key management
+const keyInput = document.getElementById('api-key-input');
+keyInput.value = localStorage.getItem('voree_api_key') || '';
+keyInput.addEventListener('input', () => localStorage.setItem('voree_api_key', keyInput.value));
+function getKey() { return keyInput.value; }
+function authHeaders() { return {'Content-Type': 'application/json', 'X-API-Key': getKey()}; }
+
+// Tabs
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-' + tab.dataset.panel).classList.add('active');
+    if (tab.dataset.panel === 'tasks') loadTasks();
+    if (tab.dataset.panel === 'sessions') loadSessions();
+    if (tab.dataset.panel === 'memories') loadMemories();
+  });
+});
+
+// Health check
+async function checkHealth() {
+  try {
+    const r = await fetch(API + '/health');
+    const d = await r.json();
+    const el = document.getElementById('health-status');
+    if (d.status === 'ok') {
+      el.innerHTML = '<span class="dot"></span> Connected';
+      el.style.color = 'var(--green)';
+    } else {
+      el.innerHTML = '<span class="dot" style="background:var(--yellow)"></span> Degraded';
+      el.style.color = 'var(--yellow)';
+    }
+  } catch {
+    const el = document.getElementById('health-status');
+    el.innerHTML = '<span class="dot" style="background:var(--red)"></span> Disconnected';
+    el.style.color = 'var(--red)';
+  }
+}
+
+// Tasks
+async function submitTask() {
+  const input = document.getElementById('task-input');
+  const mode = document.getElementById('task-mode').value;
+  const btn = document.getElementById('task-btn');
+  const task = input.value.trim();
+  if (!task) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Running...';
+  const resultDiv = document.getElementById('task-result');
+
+  if (mode === 'stream') {
+    resultDiv.innerHTML = '<div class="card"><div class="card-header"><h3>Streaming response...</h3></div><div class="result-box" id="stream-output"><span class="stream-indicator"></span></div></div>';
+    const res = await fetch(API + '/api/task/stream', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({task})
+    });
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let fullText = '';
+    let buffer = '';
+
+    while (true) {
+      const {value, done} = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, {stream: true});
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (typeof data === 'string') {
+              fullText += data;
+              document.getElementById('stream-output').textContent = fullText;
+            }
+          } catch {}
+        }
+      }
+    }
+    document.getElementById('stream-output').textContent = fullText;
+  } else {
+    resultDiv.innerHTML = '<div class="card"><div class="card-header"><h3>Processing...</h3></div></div>';
+    const res = await fetch(API + '/api/task', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({task})
+    });
+    const d = await res.json();
+    resultDiv.innerHTML = `<div class="card">
+      <div class="card-header">
+        <h3>Result</h3>
+        <div><span class="badge badge-workflow">${d.workflow}</span> <span class="badge badge-score ${d.score < 7 ? 'low' : ''}">${d.score}/10</span>${d.retried ? ' <span class="badge" style="background:#fdcb6e22;color:var(--yellow)">retried</span>' : ''}</div>
+      </div>
+      <div class="meta">${d.memories_used} memories used</div>
+      <div class="result-box">${escapeHtml(d.result)}</div>
+    </div>`;
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Run';
+  input.value = '';
+  loadTasks();
+}
+
+async function loadTasks() {
+  const res = await fetch(API + '/api/tasks?limit=20', {headers: {'X-API-Key': getKey()}});
+  const tasks = await res.json();
+  const list = document.getElementById('task-list');
+  if (!tasks.length) { list.innerHTML = '<div class="empty">No tasks yet</div>'; return; }
+  list.innerHTML = tasks.map(t => `<div class="card session-item" onclick="viewTask(${t.id})">
+    <div class="card-header">
+      <h3>${escapeHtml(t.task.substring(0, 60))}${t.task.length > 60 ? '...' : ''}</h3>
+      <div><span class="badge badge-workflow">${t.workflow}</span>${t.score ? ` <span class="badge badge-score ${t.score < 7 ? 'low' : ''}">${t.score}/10</span>` : ''}</div>
+    </div>
+    <div class="meta">${new Date(t.created_at).toLocaleString()}</div>
+  </div>`).join('');
+}
+
+async function viewTask(id) {
+  const res = await fetch(API + '/api/tasks/' + id, {headers: {'X-API-Key': getKey()}});
+  const d = await res.json();
+  document.getElementById('task-result').innerHTML = `<div class="card">
+    <div class="card-header">
+      <h3>${escapeHtml(d.task)}</h3>
+      <div><span class="badge badge-workflow">${d.workflow}</span>${d.score ? ` <span class="badge badge-score ${d.score < 7 ? 'low' : ''}">${d.score}/10</span>` : ''}</div>
+    </div>
+    ${d.critique_feedback ? `<div class="meta" style="margin-bottom:8px"><strong>Critique:</strong> ${escapeHtml(d.critique_feedback)}</div>` : ''}
+    <div class="result-box">${escapeHtml(d.result)}</div>
+  </div>`;
+}
+
+// Sessions
+let currentSession = null;
+
+async function loadSessions() {
+  const res = await fetch(API + '/api/sessions', {headers: {'X-API-Key': getKey()}});
+  const sessions = await res.json();
+  const list = document.getElementById('session-list');
+  if (!sessions.length) { list.innerHTML = '<div class="empty">No sessions</div>'; return; }
+  list.innerHTML = sessions.map(s => `<div class="card session-item ${currentSession === s.id ? 'active' : ''}" onclick="openSession(${s.id})">
+    <h3 style="font-size:13px;margin-bottom:4px">${escapeHtml((s.title || 'Untitled').substring(0, 40))}</h3>
+    <div class="meta">${s.message_count} messages &middot; ${s.workflow}</div>
+  </div>`).join('');
+}
+
+async function openSession(id) {
+  currentSession = id;
+  const res = await fetch(API + '/api/sessions/' + id, {headers: {'X-API-Key': getKey()}});
+  const s = await res.json();
+  const chat = document.getElementById('chat-messages');
+  chat.innerHTML = s.messages.map(m =>
+    `<div class="chat-msg ${m.role}">${escapeHtml(m.content)}</div>`
+  ).join('');
+  chat.scrollTop = chat.scrollHeight;
+  document.getElementById('chat-input').disabled = false;
+  document.getElementById('chat-btn').disabled = false;
+  loadSessions();
+}
+
+async function newSession() {
+  const msg = prompt('Start a new session with:');
+  if (!msg) return;
+  const res = await fetch(API + '/api/sessions', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({message: msg})
+  });
+  const s = await res.json();
+  currentSession = s.id;
+  openSession(s.id);
+}
+
+async function sendReply() {
+  if (!currentSession) return;
+  const input = document.getElementById('chat-input');
+  const msg = input.value.trim();
+  if (!msg) return;
+
+  const chat = document.getElementById('chat-messages');
+  chat.innerHTML += `<div class="chat-msg user">${escapeHtml(msg)}</div>`;
+  chat.innerHTML += `<div class="chat-msg assistant loading" id="typing">Thinking...</div>`;
+  chat.scrollTop = chat.scrollHeight;
+  input.value = '';
+  document.getElementById('chat-btn').disabled = true;
+
+  const res = await fetch(API + '/api/sessions/' + currentSession + '/reply', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({message: msg})
+  });
+  const d = await res.json();
+  document.getElementById('typing').remove();
+  chat.innerHTML += `<div class="chat-msg assistant">${escapeHtml(d.content)}</div>`;
+  chat.scrollTop = chat.scrollHeight;
+  document.getElementById('chat-btn').disabled = false;
+}
+
+// Memories
+async function loadMemories() {
+  const res = await fetch(API + '/api/memories?limit=50', {headers: {'X-API-Key': getKey()}});
+  const mems = await res.json();
+  renderMemories(mems, document.getElementById('memory-list'));
+}
+
+function renderMemories(mems, el) {
+  if (!mems.length) { el.innerHTML = '<div class="empty">No memories</div>'; return; }
+  el.innerHTML = mems.map(m => `<div class="card" id="mem-${m.id}">
+    <div class="card-header">
+      <div class="meta">Memory #${m.id} &middot; ${new Date(m.created_at).toLocaleString()}</div>
+      <button class="danger" style="padding:4px 10px;font-size:12px" onclick="deleteMemory(${m.id})">Delete</button>
+    </div>
+    <div class="memory-content">${escapeHtml(m.content)}</div>
+  </div>`).join('');
+}
+
+async function addMemory() {
+  const input = document.getElementById('memory-input');
+  const content = input.value.trim();
+  if (!content) return;
+  await fetch(API + '/api/memories', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({content})
+  });
+  input.value = '';
+  loadMemories();
+}
+
+async function searchMemories() {
+  const query = document.getElementById('memory-search').value.trim();
+  if (!query) { loadMemories(); return; }
+  const res = await fetch(API + '/api/memories/search', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({query, k: 10})
+  });
+  const mems = await res.json();
+  renderMemories(mems, document.getElementById('memory-list'));
+}
+
+async function deleteMemory(id) {
+  await fetch(API + '/api/memories/' + id, {method: 'DELETE', headers: {'X-API-Key': getKey()}});
+  const el = document.getElementById('mem-' + id);
+  if (el) el.remove();
+}
+
+// Enter key handlers
+document.getElementById('task-input').addEventListener('keydown', e => { if (e.key === 'Enter') submitTask(); });
+document.getElementById('chat-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendReply(); });
+document.getElementById('memory-search').addEventListener('keydown', e => { if (e.key === 'Enter') searchMemories(); });
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// Init
+checkHealth();
+loadTasks();
+setInterval(checkHealth, 30000);
+</script>
+</body>
+</html>
