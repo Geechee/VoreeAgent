@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from config import settings
 from models import DocumentChunk, Memory, Message
-from tools import TOOL_DEFINITIONS, execute_tool
+from tools import execute_tool, get_all_tool_definitions
 from workflows import get_workflow_instruction
 
 MAX_TOOL_ROUNDS = 5
@@ -76,7 +76,7 @@ def run_agent(
             max_tokens=1024,
             system=system,
             messages=messages,
-            tools=TOOL_DEFINITIONS if use_tools else [],
+            tools=get_all_tool_definitions(db) if use_tools else [],
         )
 
         if not _has_tool_use(message):
@@ -87,7 +87,7 @@ def run_agent(
         tool_results = []
         for block in message.content:
             if block.type == "tool_use":
-                result = execute_tool(block.name, block.input)
+                result = execute_tool(block.name, block.input, db)
                 tools_log.append({"tool": block.name, "input": block.input, "output": result})
                 tool_results.append({
                     "type": "tool_result",

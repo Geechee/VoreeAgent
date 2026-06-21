@@ -784,6 +784,102 @@ def get_key_usage(key_id: int, db: Session = Depends(get_db), _key=Depends(requi
     }
 
 
+# ── Plugins (custom tools) ──
+
+
+class PluginCreate(BaseModel):
+    name: str
+    description: str
+    url: str
+    method: str = "POST"
+    headers: Optional[dict] = None
+    parameters: dict
+
+
+class PluginUpdate(BaseModel):
+    description: Optional[str] = None
+    url: Optional[str] = None
+    method: Optional[str] = None
+    headers: Optional[dict] = None
+    parameters: Optional[dict] = None
+    is_active: Optional[bool] = None
+
+
+class PluginOut(BaseModel):
+    id: int
+    name: str
+    description: str
+    url: str
+    method: str
+    has_headers: bool
+    parameters: dict
+    is_active: bool
+    created_at: str
+
+
+@app.post("/api/plugins", response_model=PluginOut, status_code=201)
+def create_plugin(req: PluginCreate, db: Session = Depends(get_db), _key=Depends(require_key)):
+    existing = db.query(models.Plugin).filter(models.Plugin.name == req.name).first()
+    if existing:
+        raise HTTPException(status_code=409, detail=f"Plugin '{req.name}' already exists")
+    plugin = models.Plugin(
+        name=req.name, description=req.description, url=req.url,
+        method=req.method.upper(),
+        headers_json=json.dumps(req.headers) if req.headers else None,
+        parameters_json=json.dumps(req.parameters),
+    )
+    db.add(plugin)
+    db.commit()
+    db.refresh(plugin)
+    return _plugin_out(plugin)
+
+
+@app.get("/api/plugins", response_model=List[PluginOut])
+def list_plugins(db: Session = Depends(get_db), _key=Depends(require_key)):
+    rows = db.query(models.Plugin).order_by(desc(models.Plugin.created_at)).all()
+    return [_plugin_out(r) for r in rows]
+
+
+@app.put("/api/plugins/{name}", response_model=PluginOut)
+def update_plugin(name: str, req: PluginUpdate, db: Session = Depends(get_db), _key=Depends(require_key)):
+    plugin = db.query(models.Plugin).filter(models.Plugin.name == name).first()
+    if not plugin:
+        raise HTTPException(status_code=404, detail="Plugin not found")
+    if req.description is not None:
+        plugin.description = req.description
+    if req.url is not None:
+        plugin.url = req.url
+    if req.method is not None:
+        plugin.method = req.method.upper()
+    if req.headers is not None:
+        plugin.headers_json = json.dumps(req.headers)
+    if req.parameters is not None:
+        plugin.parameters_json = json.dumps(req.parameters)
+    if req.is_active is not None:
+        plugin.is_active = req.is_active
+    db.commit()
+    db.refresh(plugin)
+    return _plugin_out(plugin)
+
+
+@app.delete("/api/plugins/{name}", status_code=204)
+def delete_plugin(name: str, db: Session = Depends(get_db), _key=Depends(require_key)):
+    plugin = db.query(models.Plugin).filter(models.Plugin.name == name).first()
+    if not plugin:
+        raise HTTPException(status_code=404, detail="Plugin not found")
+    db.delete(plugin)
+    db.commit()
+
+
+def _plugin_out(p) -> PluginOut:
+    return PluginOut(
+        id=p.id, name=p.name, description=p.description, url=p.url,
+        method=p.method, has_headers=bool(p.headers_json),
+        parameters=json.loads(p.parameters_json),
+        is_active=p.is_active, created_at=p.created_at.isoformat(),
+    )
+
+
 # ── Scheduled tasks ──
 
 

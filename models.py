@@ -123,6 +123,20 @@ class UsageLog(Base):
     api_key = relationship("ApiKey", back_populates="usage_logs")
 
 
+class Plugin(Base):
+    __tablename__ = "plugins"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False, unique=True, index=True)
+    description = Column(Text, nullable=False)
+    url = Column(Text, nullable=False)  # HTTP endpoint to call
+    method = Column(String, default="POST")  # GET or POST
+    headers_json = Column(Text, nullable=True)  # JSON string of headers
+    parameters_json = Column(Text, nullable=False)  # JSON Schema for input parameters
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Schedule(Base):
     __tablename__ = "schedules"
 
