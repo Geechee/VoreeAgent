@@ -54,10 +54,20 @@ app = FastAPI(
 logger = logging.getLogger("voree")
 
 
+MAX_REQUEST_SIZE = 10 * 1024 * 1024  # 10 MB
+
+
 @app.middleware("http")
-async def error_handling_middleware(request, call_next):
+async def security_middleware(request, call_next):
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > MAX_REQUEST_SIZE:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=413, content={"detail": f"Request body too large. Max {MAX_REQUEST_SIZE // (1024*1024)} MB."})
     try:
         response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
         return response
     except Exception as e:
         logger.error(f"Unhandled error on {request.method} {request.url.path}: {e}", exc_info=True)
@@ -65,9 +75,12 @@ async def error_handling_middleware(request, call_next):
         return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
+from pydantic import Field
+
+
 class TaskRequest(BaseModel):
-    task: str
-    persona: Optional[str] = None
+    task: str = Field(..., min_length=1, max_length=10000)
+    persona: Optional[str] = Field(default=None, max_length=50)
 
 
 class ToolCall(BaseModel):
@@ -217,8 +230,8 @@ def get_task_status(task_id: int, db: Session = Depends(get_db), _key=Depends(re
 
 
 class ChainRequest(BaseModel):
-    task: str
-    roles: List[str] = ["researcher", "critic", "synthesizer"]
+    task: str = Field(..., min_length=1, max_length=10000)
+    roles: List[str] = Field(default=["researcher", "critic", "synthesizer"], min_length=2, max_length=10)
 
 
 class ChainStep(BaseModel):
@@ -348,12 +361,12 @@ class MemoryOut(BaseModel):
 
 
 class MemoryCreate(BaseModel):
-    content: str
+    content: str = Field(..., min_length=1, max_length=50000)
 
 
 class MemorySearchRequest(BaseModel):
-    query: str
-    k: int = 5
+    query: str = Field(..., min_length=1, max_length=5000)
+    k: int = Field(default=5, ge=1, le=50)
 
 
 @app.get("/api/memories", response_model=List[MemoryOut])
@@ -427,12 +440,12 @@ class SessionDetail(BaseModel):
 
 
 class SessionCreate(BaseModel):
-    message: str
-    workflow: Optional[str] = None
+    message: str = Field(..., min_length=1, max_length=10000)
+    workflow: Optional[str] = Field(default=None, max_length=50)
 
 
 class SessionReply(BaseModel):
-    message: str
+    message: str = Field(..., min_length=1, max_length=10000)
 
 
 @app.post("/api/sessions", response_model=SessionDetail, status_code=201)
@@ -558,12 +571,12 @@ class PersonaOut(BaseModel):
 
 
 class PersonaCreate(BaseModel):
-    name: str
-    display_name: str
-    description: str
-    system_prompt: str
-    tone: Optional[str] = None
-    expertise: Optional[str] = None
+    name: str = Field(..., min_length=1, max_length=50, pattern="^[a-z0-9_-]+$")
+    display_name: str = Field(..., min_length=1, max_length=100)
+    description: str = Field(..., min_length=1, max_length=500)
+    system_prompt: str = Field(..., min_length=10, max_length=5000)
+    tone: Optional[str] = Field(default=None, max_length=100)
+    expertise: Optional[str] = Field(default=None, max_length=100)
 
 
 @app.get("/api/personas", response_model=List[PersonaOut])
@@ -630,12 +643,12 @@ class TemplateOut(BaseModel):
 
 
 class TemplateCreate(BaseModel):
-    name: str
-    category: str
-    description: str
-    prompt: str
-    variables: list
-    chain_roles: Optional[str] = None
+    name: str = Field(..., min_length=1, max_length=50, pattern="^[a-z0-9_-]+$")
+    category: str = Field(..., min_length=1, max_length=30)
+    description: str = Field(..., min_length=1, max_length=500)
+    prompt: str = Field(..., min_length=10, max_length=5000)
+    variables: list = Field(..., max_length=20)
+    chain_roles: Optional[str] = Field(default=None, max_length=200)
 
 
 class TemplateRun(BaseModel):
@@ -853,8 +866,8 @@ def delete_document(doc_id: int, db: Session = Depends(get_db), _key=Depends(req
 
 
 class DocSearchRequest(BaseModel):
-    query: str
-    k: int = 5
+    query: str = Field(..., min_length=1, max_length=5000)
+    k: int = Field(default=5, ge=1, le=50)
 
 
 @app.post("/api/documents/search", response_model=List[ChunkOut])
@@ -873,9 +886,9 @@ def search_documents(req: DocSearchRequest, db: Session = Depends(get_db), _key=
 
 
 class WorkflowCreate(BaseModel):
-    name: str
-    instruction: str
-    keywords: str  # comma-separated
+    name: str = Field(..., min_length=1, max_length=50, pattern="^[a-z0-9_-]+$")
+    instruction: str = Field(..., min_length=10, max_length=2000)
+    keywords: str = Field(..., min_length=1, max_length=500)
 
 
 class WorkflowUpdate(BaseModel):
@@ -966,8 +979,8 @@ def delete_workflow(name: str, db: Session = Depends(get_db), _key=Depends(requi
 
 
 class KeyCreate(BaseModel):
-    name: str
-    rate_limit: int = 60
+    name: str = Field(..., min_length=1, max_length=50)
+    rate_limit: int = Field(default=60, ge=1, le=10000)
 
 
 class KeyOut(BaseModel):
@@ -1066,10 +1079,10 @@ def get_key_usage(key_id: int, db: Session = Depends(get_db), _key=Depends(requi
 
 
 class PluginCreate(BaseModel):
-    name: str
-    description: str
-    url: str
-    method: str = "POST"
+    name: str = Field(..., min_length=1, max_length=50, pattern="^[a-z0-9_-]+$")
+    description: str = Field(..., min_length=1, max_length=500)
+    url: str = Field(..., min_length=8, max_length=2000)
+    method: str = Field(default="POST", pattern="^(GET|POST)$")
     headers: Optional[dict] = None
     parameters: dict
 
@@ -1162,10 +1175,10 @@ def _plugin_out(p) -> PluginOut:
 
 
 class ScheduleCreate(BaseModel):
-    name: str
-    task: str
-    cron: str
-    chain_roles: Optional[str] = None
+    name: str = Field(..., min_length=1, max_length=50)
+    task: str = Field(..., min_length=1, max_length=10000)
+    cron: str = Field(..., min_length=9, max_length=100)
+    chain_roles: Optional[str] = Field(default=None, max_length=200)
 
 
 class ScheduleUpdate(BaseModel):
@@ -1272,10 +1285,10 @@ VALID_EVENTS = ["task.completed"]
 
 
 class WebhookCreate(BaseModel):
-    name: str
-    url: str
-    event: str = "task.completed"
-    secret: Optional[str] = None
+    name: str = Field(..., min_length=1, max_length=50)
+    url: str = Field(..., min_length=8, max_length=2000)
+    event: str = Field(default="task.completed", max_length=50)
+    secret: Optional[str] = Field(default=None, max_length=200)
 
 
 class WebhookUpdate(BaseModel):
