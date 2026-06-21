@@ -20,6 +20,7 @@ from db import check_connection, get_db, init_db
 from memory import retrieve_memories, store_memory
 from rag import ingest_document, retrieve_chunks
 from webhooks import fire_task_completed
+from worker import submit_task
 from workflows import BUILTIN_WORKFLOWS, select_workflow
 
 
@@ -127,10 +128,61 @@ def handle_task_stream(req: TaskRequest, db: Session = Depends(get_db), _key=Dep
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
+class AsyncTaskResponse(BaseModel):
+    task_id: int
+    status: str
+    message: str
+
+
+class TaskStatus(BaseModel):
+    id: int
+    task: str
+    status: str
+    workflow: Optional[str]
+    result: Optional[str]
+    error: Optional[str]
+    score: Optional[int]
+    created_at: str
+    completed_at: Optional[str]
+
+
+@app.post("/api/task/async", response_model=AsyncTaskResponse, status_code=202)
+def handle_task_async(req: TaskRequest, db: Session = Depends(get_db), _key=Depends(require_key)):
+    task_row = models.Task(input=req.task, status="pending")
+    db.add(task_row)
+    db.commit()
+    db.refresh(task_row)
+    submit_task(task_row.id)
+    return AsyncTaskResponse(
+        task_id=task_row.id,
+        status="pending",
+        message="Task submitted. Poll GET /api/task/async/{task_id} for results.",
+    )
+
+
+@app.get("/api/task/async/{task_id}", response_model=TaskStatus)
+def get_task_status(task_id: int, db: Session = Depends(get_db), _key=Depends(require_key)):
+    task_row = db.query(models.Task).filter(models.Task.id == task_id).first()
+    if not task_row:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return TaskStatus(
+        id=task_row.id,
+        task=task_row.input,
+        status=task_row.status or "completed",
+        workflow=task_row.workflow,
+        result=task_row.result,
+        error=task_row.error,
+        score=task_row.score,
+        created_at=task_row.created_at.isoformat(),
+        completed_at=task_row.completed_at.isoformat() if task_row.completed_at else None,
+    )
+
+
 class TaskSummary(BaseModel):
     id: int
     task: str
-    workflow: str
+    workflow: Optional[str]
+    status: str
     score: Optional[int]
     created_at: str
 
@@ -165,6 +217,7 @@ def list_tasks(
             id=r.id,
             task=r.input,
             workflow=r.workflow,
+            status=r.status or "completed",
             score=r.score,
             created_at=r.created_at.isoformat(),
         )

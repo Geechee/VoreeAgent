@@ -15,9 +15,12 @@ class Task(Base):
     id = Column(Integer, primary_key=True, index=True)
     input = Column(Text, nullable=False)
     workflow = Column(String, nullable=True)
+    status = Column(String, default="completed")  # pending, running, completed, failed
     result = Column(Text, nullable=True)
+    error = Column(Text, nullable=True)
     score = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)
 
 
 class Memory(Base):
