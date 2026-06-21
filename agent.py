@@ -27,11 +27,13 @@ def _build_system_prompt(
     memories: Optional[List[Memory]] = None,
     db: Optional[DBSession] = None,
     doc_chunks: Optional[List[DocumentChunk]] = None,
+    persona_prompt: Optional[str] = None,
 ) -> str:
     """Combine the workflow instruction with memories and document context."""
     instruction = get_workflow_instruction(workflow_name, db)
+    identity = persona_prompt or "You are VOREE, an intelligent AI agent."
     parts = [
-        "You are VOREE, an intelligent AI agent.",
+        identity,
         f"\n## Current Workflow\n{instruction}",
     ]
     if memories:
@@ -61,12 +63,13 @@ def run_agent(
     use_tools: bool = True,
     db: Optional[DBSession] = None,
     doc_chunks: Optional[List[DocumentChunk]] = None,
+    persona_prompt: Optional[str] = None,
 ) -> tuple[str, list[dict]]:
     """Send the task to Claude with workflow instructions, memory context, and tools.
 
     Returns (response_text, tool_calls_log).
     """
-    system = _build_system_prompt(workflow_name, memories, db, doc_chunks)
+    system = _build_system_prompt(workflow_name, memories, db, doc_chunks, persona_prompt)
     messages = [{"role": "user", "content": task}]
     tools_log = []
 

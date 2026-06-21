@@ -123,6 +123,21 @@ class UsageLog(Base):
     api_key = relationship("ApiKey", back_populates="usage_logs")
 
 
+class Persona(Base):
+    __tablename__ = "personas"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False, unique=True, index=True)
+    display_name = Column(String, nullable=False)
+    description = Column(Text, nullable=False)
+    system_prompt = Column(Text, nullable=False)
+    tone = Column(String, nullable=True)
+    expertise = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True)
+    use_count = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Template(Base):
     __tablename__ = "templates"
 

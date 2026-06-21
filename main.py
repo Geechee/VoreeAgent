@@ -23,6 +23,7 @@ from chain import run_chain, AGENT_ROLES
 from critic import critique
 from db import check_connection, get_db, init_db
 from memory import retrieve_memories, store_memory
+from personas import BUILTIN_PERSONAS, get_persona_prompt
 from rag import ingest_document, retrieve_chunks
 from templates import BUILTIN_TEMPLATES, render_template
 from discord_bot import start_discord_bot
@@ -46,6 +47,7 @@ app = FastAPI(title="VOREE Agent Framework", version="1.1", lifespan=lifespan)
 
 class TaskRequest(BaseModel):
     task: str
+    persona: Optional[str] = None
 
 
 class ToolCall(BaseModel):
@@ -69,7 +71,8 @@ def handle_task(req: TaskRequest, db: Session = Depends(get_db), _key=Depends(re
     workflow = select_workflow(req.task, db)
     memories = retrieve_memories(db, req.task, k=5)
     doc_chunks = retrieve_chunks(db, req.task, k=5)
-    result, tools_log = run_agent(req.task, workflow, memories, db=db, doc_chunks=doc_chunks or None)
+    persona_prompt = get_persona_prompt(req.persona, db) if req.persona else None
+    result, tools_log = run_agent(req.task, workflow, memories, db=db, doc_chunks=doc_chunks or None, persona_prompt=persona_prompt)
 
     # Critic scores the result
     review = critique(req.task, result)
@@ -78,7 +81,7 @@ def handle_task(req: TaskRequest, db: Session = Depends(get_db), _key=Depends(re
 
     # Retry once if score is below 7
     if score < 7:
-        result, tools_log = run_agent(req.task, workflow, memories, db=db, doc_chunks=doc_chunks or None)
+        result, tools_log = run_agent(req.task, workflow, memories, db=db, doc_chunks=doc_chunks or None, persona_prompt=persona_prompt)
         review = critique(req.task, result)
         score = review["score"]
         retried = True
@@ -517,6 +520,78 @@ def get_session(session_id: int, db: Session = Depends(get_db), _key=Depends(req
         ],
         created_at=session.created_at.isoformat(),
     )
+
+
+# ── Personas ──
+
+
+class PersonaOut(BaseModel):
+    id: Optional[int] = None
+    name: str
+    display_name: str
+    description: str
+    tone: Optional[str]
+    expertise: Optional[str]
+    is_active: bool = True
+    use_count: int = 0
+    source: str
+
+
+class PersonaCreate(BaseModel):
+    name: str
+    display_name: str
+    description: str
+    system_prompt: str
+    tone: Optional[str] = None
+    expertise: Optional[str] = None
+
+
+@app.get("/api/personas", response_model=List[PersonaOut])
+def list_personas(db: Session = Depends(get_db), _key=Depends(require_key)):
+    results = []
+    for p in BUILTIN_PERSONAS:
+        results.append(PersonaOut(
+            name=p["name"], display_name=p["display_name"], description=p["description"],
+            tone=p.get("tone"), expertise=p.get("expertise"), source="builtin",
+        ))
+    customs = db.query(models.Persona).filter(models.Persona.is_active == True).order_by(desc(models.Persona.use_count)).all()
+    for p in customs:
+        results.append(PersonaOut(
+            id=p.id, name=p.name, display_name=p.display_name, description=p.description,
+            tone=p.tone, expertise=p.expertise, use_count=p.use_count, source="custom",
+        ))
+    return results
+
+
+@app.post("/api/personas", response_model=PersonaOut, status_code=201)
+def create_persona(req: PersonaCreate, db: Session = Depends(get_db), _key=Depends(require_key)):
+    if any(p["name"] == req.name for p in BUILTIN_PERSONAS):
+        raise HTTPException(status_code=409, detail=f"'{req.name}' is a built-in persona")
+    existing = db.query(models.Persona).filter(models.Persona.name == req.name).first()
+    if existing:
+        raise HTTPException(status_code=409, detail=f"Persona '{req.name}' already exists")
+    row = models.Persona(
+        name=req.name, display_name=req.display_name, description=req.description,
+        system_prompt=req.system_prompt, tone=req.tone, expertise=req.expertise,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return PersonaOut(
+        id=row.id, name=row.name, display_name=row.display_name, description=row.description,
+        tone=row.tone, expertise=row.expertise, use_count=0, source="custom",
+    )
+
+
+@app.delete("/api/personas/{name}", status_code=204)
+def delete_persona(name: str, db: Session = Depends(get_db), _key=Depends(require_key)):
+    if any(p["name"] == name for p in BUILTIN_PERSONAS):
+        raise HTTPException(status_code=403, detail="Cannot delete built-in personas")
+    row = db.query(models.Persona).filter(models.Persona.name == name).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Persona not found")
+    db.delete(row)
+    db.commit()
 
 
 # ── Templates ──
