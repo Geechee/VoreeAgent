@@ -4,6 +4,9 @@ from typing import List, Optional
 import csv
 import io
 import json
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 from fastapi import FastAPI, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, Response, StreamingResponse
@@ -15,6 +18,7 @@ from sqlalchemy import desc, func
 import models  # noqa: F401  registers tables on Base
 from agent import run_agent, run_conversation, stream_agent
 from auth import create_api_key, require_key
+from auto_memory import extract_and_store
 from chain import run_chain, AGENT_ROLES
 from critic import critique
 from db import check_connection, get_db, init_db
@@ -94,8 +98,9 @@ def handle_task(req: TaskRequest, db: Session = Depends(get_db), _key=Depends(re
     # Store the result as a new memory for future context
     store_memory(db, f"Task: {req.task} | Result summary: {result[:200]}")
 
-    # Fire webhooks
+    # Fire webhooks and extract learnings
     fire_task_completed(db, task_row.id, req.task, workflow, result, score)
+    extract_and_store(req.task, result)
 
     return TaskResponse(
         task=req.task,
@@ -465,6 +470,8 @@ def reply_to_session(session_id: int, req: SessionReply, db: Session = Depends(g
     db.commit()
     db.refresh(asst_msg)
 
+    extract_and_store(req.message, reply)
+
     return MessageOut(id=asst_msg.id, role="assistant", content=asst_msg.content, created_at=asst_msg.created_at.isoformat())
 
 
@@ -509,6 +516,41 @@ def get_session(session_id: int, db: Session = Depends(get_db), _key=Depends(req
         ],
         created_at=session.created_at.isoformat(),
     )
+
+
+# ── Auto-memory ──
+
+
+@app.get("/api/memories/auto")
+def list_auto_memories(
+    limit: int = Query(default=20, le=100),
+    db: Session = Depends(get_db),
+    _key=Depends(require_key),
+):
+    rows = (
+        db.query(models.Memory)
+        .filter(models.Memory.content.startswith("[auto]"))
+        .order_by(desc(models.Memory.created_at))
+        .limit(limit)
+        .all()
+    )
+    return [
+        {"id": r.id, "fact": r.content.replace("[auto] ", "", 1), "created_at": r.created_at.isoformat()}
+        for r in rows
+    ]
+
+
+@app.post("/api/sessions/{session_id}/extract")
+def extract_session_facts(session_id: int, db: Session = Depends(get_db), _key=Depends(require_key)):
+    from auto_memory import extract_from_session
+    session = db.query(models.Session).filter(models.Session.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    messages = [{"role": m.role, "content": m.content} for m in session.messages]
+    facts = extract_from_session(messages)
+    for fact in facts[:5]:
+        store_memory(db, f"[auto] {fact}")
+    return {"session_id": session_id, "facts_extracted": len(facts), "facts": facts}
 
 
 # ── Documents & RAG ──
