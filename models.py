@@ -118,3 +118,15 @@ class UsageLog(Base):
     status_code = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     api_key = relationship("ApiKey", back_populates="usage_logs")
+
+
+class Webhook(Base):
+    __tablename__ = "webhooks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    url = Column(Text, nullable=False)
+    event = Column(String, nullable=False)  # "task.completed", "task.failed"
+    secret = Column(String, nullable=True)  # optional signing secret
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)

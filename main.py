@@ -19,6 +19,7 @@ from critic import critique
 from db import check_connection, get_db, init_db
 from memory import retrieve_memories, store_memory
 from rag import ingest_document, retrieve_chunks
+from webhooks import fire_task_completed
 from workflows import BUILTIN_WORKFLOWS, select_workflow
 
 
@@ -85,6 +86,9 @@ def handle_task(req: TaskRequest, db: Session = Depends(get_db), _key=Depends(re
 
     # Store the result as a new memory for future context
     store_memory(db, f"Task: {req.task} | Result summary: {result[:200]}")
+
+    # Fire webhooks
+    fire_task_completed(db, task_row.id, req.task, workflow, result, score)
 
     return TaskResponse(
         task=req.task,
@@ -665,6 +669,105 @@ def get_key_usage(key_id: int, db: Session = Depends(get_db), _key=Depends(requi
         "remaining_this_minute": max(0, (row.rate_limit or 60) - last_minute),
         "top_endpoints": {ep: cnt for ep, cnt in top_endpoints},
     }
+
+
+# ── Webhooks ──
+
+VALID_EVENTS = ["task.completed"]
+
+
+class WebhookCreate(BaseModel):
+    name: str
+    url: str
+    event: str = "task.completed"
+    secret: Optional[str] = None
+
+
+class WebhookUpdate(BaseModel):
+    url: Optional[str] = None
+    event: Optional[str] = None
+    secret: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class WebhookOut(BaseModel):
+    id: int
+    name: str
+    url: str
+    event: str
+    has_secret: bool
+    is_active: bool
+    created_at: str
+
+
+@app.post("/api/webhooks", response_model=WebhookOut, status_code=201)
+def create_webhook(req: WebhookCreate, db: Session = Depends(get_db), _key=Depends(require_key)):
+    if req.event not in VALID_EVENTS:
+        raise HTTPException(status_code=400, detail=f"Invalid event. Valid: {VALID_EVENTS}")
+    hook = models.Webhook(name=req.name, url=req.url, event=req.event, secret=req.secret)
+    db.add(hook)
+    db.commit()
+    db.refresh(hook)
+    return WebhookOut(
+        id=hook.id, name=hook.name, url=hook.url, event=hook.event,
+        has_secret=bool(hook.secret), is_active=hook.is_active,
+        created_at=hook.created_at.isoformat(),
+    )
+
+
+@app.get("/api/webhooks", response_model=List[WebhookOut])
+def list_webhooks(db: Session = Depends(get_db), _key=Depends(require_key)):
+    rows = db.query(models.Webhook).order_by(desc(models.Webhook.created_at)).all()
+    return [
+        WebhookOut(
+            id=r.id, name=r.name, url=r.url, event=r.event,
+            has_secret=bool(r.secret), is_active=r.is_active,
+            created_at=r.created_at.isoformat(),
+        )
+        for r in rows
+    ]
+
+
+@app.put("/api/webhooks/{webhook_id}", response_model=WebhookOut)
+def update_webhook(webhook_id: int, req: WebhookUpdate, db: Session = Depends(get_db), _key=Depends(require_key)):
+    hook = db.query(models.Webhook).filter(models.Webhook.id == webhook_id).first()
+    if not hook:
+        raise HTTPException(status_code=404, detail="Webhook not found")
+    if req.url is not None:
+        hook.url = req.url
+    if req.event is not None:
+        if req.event not in VALID_EVENTS:
+            raise HTTPException(status_code=400, detail=f"Invalid event. Valid: {VALID_EVENTS}")
+        hook.event = req.event
+    if req.secret is not None:
+        hook.secret = req.secret
+    if req.is_active is not None:
+        hook.is_active = req.is_active
+    db.commit()
+    db.refresh(hook)
+    return WebhookOut(
+        id=hook.id, name=hook.name, url=hook.url, event=hook.event,
+        has_secret=bool(hook.secret), is_active=hook.is_active,
+        created_at=hook.created_at.isoformat(),
+    )
+
+
+@app.delete("/api/webhooks/{webhook_id}", status_code=204)
+def delete_webhook(webhook_id: int, db: Session = Depends(get_db), _key=Depends(require_key)):
+    hook = db.query(models.Webhook).filter(models.Webhook.id == webhook_id).first()
+    if not hook:
+        raise HTTPException(status_code=404, detail="Webhook not found")
+    db.delete(hook)
+    db.commit()
+
+
+@app.post("/api/webhooks/{webhook_id}/test")
+def test_webhook(webhook_id: int, db: Session = Depends(get_db), _key=Depends(require_key)):
+    hook = db.query(models.Webhook).filter(models.Webhook.id == webhook_id).first()
+    if not hook:
+        raise HTTPException(status_code=404, detail="Webhook not found")
+    fire_task_completed(db, 0, "Test task from VOREE", "research_v1", "This is a test webhook delivery.", 10)
+    return {"status": "sent", "webhook": hook.name, "url": hook.url}
 
 
 # ── Analytics & export ──
