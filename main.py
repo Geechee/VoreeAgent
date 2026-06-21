@@ -42,7 +42,27 @@ async def lifespan(app: FastAPI):
     stop_scheduler()
 
 
-app = FastAPI(title="VOREE Agent Framework", version="1.1", lifespan=lifespan)
+app = FastAPI(
+    title="VOREE Agent Framework",
+    version="1.1",
+    description="AI agent backend powered by Claude — semantic memory, document RAG, multi-agent chains, tool plugins, and more.",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    lifespan=lifespan,
+)
+
+logger = logging.getLogger("voree")
+
+
+@app.middleware("http")
+async def error_handling_middleware(request, call_next):
+    try:
+        response = await call_next(request)
+        return response
+    except Exception as e:
+        logger.error(f"Unhandled error on {request.method} {request.url.path}: {e}", exc_info=True)
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
 class TaskRequest(BaseModel):
@@ -1388,7 +1408,7 @@ def get_stats(db: Session = Depends(get_db), _key=Depends(require_key)):
 
 @app.get("/api/export/tasks")
 def export_tasks(
-    format: str = Query(default="json", regex="^(json|csv)$"),
+    format: str = Query(default="json", pattern="^(json|csv)$"),
     db: Session = Depends(get_db),
     _key=Depends(require_key),
 ):
@@ -1426,7 +1446,7 @@ def export_tasks(
 
 @app.get("/api/export/memories")
 def export_memories(
-    format: str = Query(default="json", regex="^(json|csv)$"),
+    format: str = Query(default="json", pattern="^(json|csv)$"),
     db: Session = Depends(get_db),
     _key=Depends(require_key),
 ):
