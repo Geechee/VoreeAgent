@@ -15,6 +15,7 @@ from sqlalchemy import desc, func
 import models  # noqa: F401  registers tables on Base
 from agent import run_agent, run_conversation, stream_agent
 from auth import create_api_key, require_key
+from chain import run_chain, AGENT_ROLES
 from critic import critique
 from db import check_connection, get_db, init_db
 from memory import retrieve_memories, store_memory
@@ -175,6 +176,62 @@ def get_task_status(task_id: int, db: Session = Depends(get_db), _key=Depends(re
         score=task_row.score,
         created_at=task_row.created_at.isoformat(),
         completed_at=task_row.completed_at.isoformat() if task_row.completed_at else None,
+    )
+
+
+# ── Multi-agent chains ──
+
+
+class ChainRequest(BaseModel):
+    task: str
+    roles: List[str] = ["researcher", "critic", "synthesizer"]
+
+
+class ChainStep(BaseModel):
+    role: str
+    output: str
+
+
+class ChainResponse(BaseModel):
+    task: str
+    roles: List[str]
+    steps: List[ChainStep]
+    final_result: str
+
+
+@app.get("/api/chain/roles")
+def list_roles(_key=Depends(require_key)):
+    return {name: desc for name, desc in AGENT_ROLES.items()}
+
+
+@app.post("/api/chain", response_model=ChainResponse)
+def run_agent_chain(req: ChainRequest, db: Session = Depends(get_db), _key=Depends(require_key)):
+    for role in req.roles:
+        if role not in AGENT_ROLES:
+            raise HTTPException(status_code=400, detail=f"Unknown role: {role}. Valid: {list(AGENT_ROLES.keys())}")
+    if len(req.roles) < 2:
+        raise HTTPException(status_code=400, detail="Chain requires at least 2 roles")
+
+    memories = retrieve_memories(db, req.task, k=5)
+    doc_chunks = retrieve_chunks(db, req.task, k=5)
+    result = run_chain(req.task, req.roles, memories, doc_chunks or None)
+
+    task_row = models.Task(
+        input=f"[chain:{','.join(req.roles)}] {req.task}",
+        workflow="chain",
+        result=result["final_result"],
+        status="completed",
+    )
+    db.add(task_row)
+    db.commit()
+
+    store_memory(db, f"Task: {req.task} | Chain result: {result['final_result'][:200]}")
+
+    return ChainResponse(
+        task=req.task,
+        roles=req.roles,
+        steps=[ChainStep(**s) for s in result["steps"]],
+        final_result=result["final_result"],
     )
 
 
