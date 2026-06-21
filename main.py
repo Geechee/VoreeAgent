@@ -24,6 +24,7 @@ from critic import critique
 from db import check_connection, get_db, init_db
 from memory import retrieve_memories, store_memory
 from personas import BUILTIN_PERSONAS, get_persona_prompt
+from cache import stats_cache
 from rag import ingest_document, retrieve_chunks
 from templates import BUILTIN_TEMPLATES, render_template
 from discord_bot import start_discord_bot
@@ -1383,6 +1384,9 @@ def test_webhook(webhook_id: int, db: Session = Depends(get_db), _key=Depends(re
 
 @app.get("/api/stats")
 def get_stats(db: Session = Depends(get_db), _key=Depends(require_key)):
+    cached = stats_cache.get("stats")
+    if cached:
+        return cached
     total_tasks = db.query(func.count(models.Task.id)).scalar()
     scored_tasks = db.query(func.count(models.Task.id)).filter(models.Task.score.isnot(None)).scalar()
     avg_score = db.query(func.avg(models.Task.score)).filter(models.Task.score.isnot(None)).scalar()
@@ -1406,7 +1410,7 @@ def get_stats(db: Session = Depends(get_db), _key=Depends(require_key)):
     )
     score_distribution = {str(s): c for s, c in score_dist}
 
-    return {
+    result = {
         "tasks": {
             "total": total_tasks,
             "scored": scored_tasks,
@@ -1417,6 +1421,8 @@ def get_stats(db: Session = Depends(get_db), _key=Depends(require_key)):
         "memories": {"total": total_memories},
         "sessions": {"total": total_sessions, "total_messages": total_messages},
     }
+    stats_cache.set("stats", result)
+    return result
 
 
 @app.get("/api/export/tasks")
