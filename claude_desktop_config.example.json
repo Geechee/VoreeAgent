@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "voree": {
+      "command": "docker",
+      "args": [
+        "compose", "run", "--rm", "app",
+        "python", "mcp_server.py"
+      ],
+      "cwd": "/path/to/VoreeAgent"
+    }
+  }
+}
