@@ -123,6 +123,20 @@ class UsageLog(Base):
     api_key = relationship("ApiKey", back_populates="usage_logs")
 
 
+class Template(Base):
+    __tablename__ = "templates"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False, unique=True, index=True)
+    category = Column(String, nullable=False)  # writing, analysis, coding, business, creative
+    description = Column(Text, nullable=False)
+    prompt = Column(Text, nullable=False)  # template with {{variable}} placeholders
+    variables = Column(Text, nullable=False)  # JSON array of variable definitions
+    chain_roles = Column(String, nullable=True)  # optional multi-agent chain
+    use_count = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Plugin(Base):
     __tablename__ = "plugins"
 

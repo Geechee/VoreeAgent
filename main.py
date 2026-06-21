@@ -24,6 +24,7 @@ from critic import critique
 from db import check_connection, get_db, init_db
 from memory import retrieve_memories, store_memory
 from rag import ingest_document, retrieve_chunks
+from templates import BUILTIN_TEMPLATES, render_template
 from discord_bot import start_discord_bot
 from scheduler import start_scheduler, stop_scheduler
 from webhooks import fire_task_completed
@@ -516,6 +517,144 @@ def get_session(session_id: int, db: Session = Depends(get_db), _key=Depends(req
         ],
         created_at=session.created_at.isoformat(),
     )
+
+
+# ── Templates ──
+
+
+class TemplateOut(BaseModel):
+    id: Optional[int] = None
+    name: str
+    category: str
+    description: str
+    prompt: str
+    variables: list
+    chain_roles: Optional[str] = None
+    use_count: int = 0
+    source: str
+
+
+class TemplateCreate(BaseModel):
+    name: str
+    category: str
+    description: str
+    prompt: str
+    variables: list
+    chain_roles: Optional[str] = None
+
+
+class TemplateRun(BaseModel):
+    variables: dict
+
+
+@app.get("/api/templates", response_model=List[TemplateOut])
+def list_templates(
+    category: Optional[str] = Query(default=None),
+    db: Session = Depends(get_db),
+    _key=Depends(require_key),
+):
+    results = []
+    for t in BUILTIN_TEMPLATES:
+        if category and t["category"] != category:
+            continue
+        results.append(TemplateOut(
+            name=t["name"], category=t["category"], description=t["description"],
+            prompt=t["prompt"], variables=t["variables"],
+            chain_roles=t.get("chain_roles"), source="builtin",
+        ))
+    customs = db.query(models.Template).order_by(models.Template.use_count.desc()).all()
+    for t in customs:
+        if category and t.category != category:
+            continue
+        results.append(TemplateOut(
+            id=t.id, name=t.name, category=t.category, description=t.description,
+            prompt=t.prompt, variables=json.loads(t.variables),
+            chain_roles=t.chain_roles, use_count=t.use_count, source="custom",
+        ))
+    return results
+
+
+@app.get("/api/templates/categories")
+def list_categories(_key=Depends(require_key)):
+    cats = set(t["category"] for t in BUILTIN_TEMPLATES)
+    return sorted(cats)
+
+
+@app.post("/api/templates", response_model=TemplateOut, status_code=201)
+def create_template(req: TemplateCreate, db: Session = Depends(get_db), _key=Depends(require_key)):
+    if any(t["name"] == req.name for t in BUILTIN_TEMPLATES):
+        raise HTTPException(status_code=409, detail=f"'{req.name}' is a built-in template")
+    existing = db.query(models.Template).filter(models.Template.name == req.name).first()
+    if existing:
+        raise HTTPException(status_code=409, detail=f"Template '{req.name}' already exists")
+    row = models.Template(
+        name=req.name, category=req.category, description=req.description,
+        prompt=req.prompt, variables=json.dumps(req.variables),
+        chain_roles=req.chain_roles,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return TemplateOut(
+        id=row.id, name=row.name, category=row.category, description=row.description,
+        prompt=row.prompt, variables=json.loads(row.variables),
+        chain_roles=row.chain_roles, use_count=row.use_count, source="custom",
+    )
+
+
+@app.delete("/api/templates/{name}", status_code=204)
+def delete_template(name: str, db: Session = Depends(get_db), _key=Depends(require_key)):
+    if any(t["name"] == name for t in BUILTIN_TEMPLATES):
+        raise HTTPException(status_code=403, detail="Cannot delete built-in templates")
+    row = db.query(models.Template).filter(models.Template.name == name).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Template not found")
+    db.delete(row)
+    db.commit()
+
+
+@app.post("/api/templates/{name}/run")
+def run_template(name: str, req: TemplateRun, db: Session = Depends(get_db), _key=Depends(require_key)):
+    tmpl = None
+    chain_roles = None
+    for t in BUILTIN_TEMPLATES:
+        if t["name"] == name:
+            tmpl = t
+            chain_roles = t.get("chain_roles")
+            break
+    if not tmpl:
+        row = db.query(models.Template).filter(models.Template.name == name).first()
+        if not row:
+            raise HTTPException(status_code=404, detail="Template not found")
+        tmpl = {"prompt": row.prompt, "variables": json.loads(row.variables)}
+        chain_roles = row.chain_roles
+        row.use_count = (row.use_count or 0) + 1
+        db.commit()
+
+    # Fill in defaults for missing variables
+    filled = dict(req.variables)
+    for v in tmpl["variables"]:
+        if v["name"] not in filled and "default" in v:
+            filled[v["name"]] = v["default"]
+
+    task_text = render_template(tmpl["prompt"], filled)
+
+    if chain_roles:
+        roles = [r.strip() for r in chain_roles.split(",")]
+        memories = retrieve_memories(db, task_text, k=5)
+        doc_chunks = retrieve_chunks(db, task_text, k=5)
+        chain_result = run_chain(task_text, roles, memories, doc_chunks or None)
+        result = chain_result["final_result"]
+    else:
+        workflow = select_workflow(task_text, db)
+        memories = retrieve_memories(db, task_text, k=5)
+        doc_chunks = retrieve_chunks(db, task_text, k=5)
+        result, _ = run_agent(task_text, workflow, memories, db=db, doc_chunks=doc_chunks or None)
+
+    store_memory(db, f"Task: {task_text[:100]} | Result summary: {result[:200]}")
+    extract_and_store(task_text, result)
+
+    return {"template": name, "rendered_prompt": task_text, "result": result}
 
 
 # ── Auto-memory ──
