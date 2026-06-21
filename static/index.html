@@ -16,11 +16,12 @@
     --green: #00b894;
     --red: #e17055;
     --yellow: #fdcb6e;
+    --blue: #74b9ff;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
 
-  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 24px; display: flex; align-items: center; gap: 16px; }
+  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; gap: 16px; }
   header h1 { font-size: 20px; font-weight: 600; }
   header .version { color: var(--muted); font-size: 13px; }
   header .key-input { margin-left: auto; display: flex; align-items: center; gap: 8px; }
@@ -29,8 +30,8 @@
   header .status { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--green); }
   header .status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
 
-  .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); background: var(--surface); padding: 0 24px; }
-  .tab { padding: 12px 20px; cursor: pointer; color: var(--muted); font-size: 14px; border-bottom: 2px solid transparent; transition: all 0.2s; }
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); background: var(--surface); padding: 0 24px; overflow-x: auto; }
+  .tab { padding: 11px 16px; cursor: pointer; color: var(--muted); font-size: 13px; border-bottom: 2px solid transparent; transition: all 0.2s; white-space: nowrap; }
   .tab:hover { color: var(--text); }
   .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 
@@ -38,13 +39,14 @@
   .panel { display: none; }
   .panel.active { display: block; }
 
-  .input-row { display: flex; gap: 10px; margin-bottom: 20px; }
+  .input-row { display: flex; gap: 10px; margin-bottom: 16px; }
   .input-row input, .input-row select { flex: 1; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 14px; outline: none; }
   .input-row input:focus { border-color: var(--accent); }
   .input-row select { flex: 0 0 auto; width: 140px; }
   button { padding: 10px 20px; background: var(--accent); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s; }
   button:hover { background: var(--accent-hover); }
   button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.sm { padding: 5px 12px; font-size: 12px; }
   button.secondary { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
   button.secondary:hover { border-color: var(--accent); }
   button.danger { background: var(--red); }
@@ -56,6 +58,8 @@
   .badge-workflow { background: #6c5ce722; color: var(--accent); }
   .badge-score { background: #00b89422; color: var(--green); }
   .badge-score.low { background: #e1705522; color: var(--red); }
+  .badge-active { background: #00b89422; color: var(--green); }
+  .badge-inactive { background: #e1705522; color: var(--red); }
   .meta { font-size: 12px; color: var(--muted); }
 
   .result-box { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-top: 12px; white-space: pre-wrap; font-size: 13px; line-height: 1.6; max-height: 400px; overflow-y: auto; }
@@ -69,17 +73,31 @@
   .session-item:hover { border-color: var(--accent); }
   .session-item.active { border-color: var(--accent); }
 
-  .memory-content { font-size: 13px; line-height: 1.5; }
-  .memory-actions { display: flex; gap: 8px; margin-top: 8px; }
-
   .empty { text-align: center; color: var(--muted); padding: 40px; font-size: 14px; }
   .loading { color: var(--muted); font-style: italic; }
 
   .stream-indicator { display: inline-block; width: 8px; height: 16px; background: var(--accent); animation: blink 0.6s infinite; margin-left: 2px; vertical-align: text-bottom; }
   @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
 
-  .search-row { display: flex; gap: 10px; margin-bottom: 16px; }
-  .search-row input { flex: 1; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 14px; outline: none; }
+  /* Stats grid */
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; text-align: center; }
+  .stat-card .stat-value { font-size: 28px; font-weight: 700; color: var(--accent); }
+  .stat-card .stat-label { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  /* Bar chart */
+  .bar-chart { display: flex; align-items: flex-end; gap: 8px; height: 120px; padding: 8px 0; }
+  .bar-col { display: flex; flex-direction: column; align-items: center; flex: 1; }
+  .bar { width: 100%; max-width: 50px; background: var(--accent); border-radius: 4px 4px 0 0; transition: height 0.3s; min-height: 2px; }
+  .bar-label { font-size: 11px; color: var(--muted); margin-top: 6px; }
+  .bar-value { font-size: 11px; color: var(--text); margin-bottom: 4px; }
+
+  .section-title { font-size: 14px; color: var(--muted); margin: 20px 0 12px; font-weight: 500; }
+
+  /* File upload */
+  .upload-zone { border: 2px dashed var(--border); border-radius: 10px; padding: 30px; text-align: center; color: var(--muted); cursor: pointer; transition: border-color 0.2s; margin-bottom: 16px; }
+  .upload-zone:hover { border-color: var(--accent); }
+  .upload-zone input { display: none; }
 </style>
 </head>
 <body>
@@ -97,21 +115,23 @@
   <div class="tab active" data-panel="tasks">Tasks</div>
   <div class="tab" data-panel="sessions">Sessions</div>
   <div class="tab" data-panel="memories">Memories</div>
+  <div class="tab" data-panel="documents">Documents</div>
+  <div class="tab" data-panel="analytics">Analytics</div>
+  <div class="tab" data-panel="keys">API Keys</div>
+  <div class="tab" data-panel="webhooks">Webhooks</div>
 </div>
 
-<!-- Tasks Panel -->
 <div class="container">
+
+<!-- Tasks Panel -->
 <div class="panel active" id="panel-tasks">
   <div class="input-row">
     <input type="text" id="task-input" placeholder="Enter a task..." />
-    <select id="task-mode">
-      <option value="standard">Standard</option>
-      <option value="stream">Stream</option>
-    </select>
+    <select id="task-mode"><option value="standard">Standard</option><option value="stream">Stream</option></select>
     <button onclick="submitTask()" id="task-btn">Run</button>
   </div>
   <div id="task-result"></div>
-  <h3 style="margin: 20px 0 12px; font-size: 14px; color: var(--muted);">History</h3>
+  <div class="section-title">History</div>
   <div id="task-list"></div>
 </div>
 
@@ -123,9 +143,7 @@
       <div id="session-list"></div>
     </div>
     <div style="flex: 1; display: flex; flex-direction: column;">
-      <div class="chat-messages" id="chat-messages">
-        <div class="empty">Select or start a session</div>
-      </div>
+      <div class="chat-messages" id="chat-messages"><div class="empty">Select or start a session</div></div>
       <div class="input-row" style="margin-bottom: 0;">
         <input type="text" id="chat-input" placeholder="Type a message..." disabled />
         <button onclick="sendReply()" id="chat-btn" disabled>Send</button>
@@ -140,23 +158,76 @@
     <input type="text" id="memory-input" placeholder="Store a new memory..." />
     <button onclick="addMemory()">Save</button>
   </div>
-  <div class="search-row">
+  <div class="input-row">
     <input type="text" id="memory-search" placeholder="Semantic search memories..." />
     <button class="secondary" onclick="searchMemories()">Search</button>
   </div>
   <div id="memory-list"></div>
 </div>
+
+<!-- Documents Panel -->
+<div class="panel" id="panel-documents">
+  <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
+    <input type="file" id="file-input" accept=".txt,.md" onchange="uploadDoc(this)" />
+    Click to upload a document (.txt, .md)
+  </div>
+  <div class="input-row">
+    <input type="text" id="doc-search" placeholder="Search document chunks..." />
+    <button class="secondary" onclick="searchDocs()">Search</button>
+  </div>
+  <div id="doc-search-results"></div>
+  <div class="section-title">Uploaded Documents</div>
+  <div id="doc-list"></div>
+</div>
+
+<!-- Analytics Panel -->
+<div class="panel" id="panel-analytics">
+  <div class="stats-grid" id="stats-grid"></div>
+  <div class="card">
+    <div class="card-header"><h3>Workflow Distribution</h3></div>
+    <div class="bar-chart" id="workflow-chart"></div>
+  </div>
+  <div class="card" style="margin-top: 12px;">
+    <div class="card-header"><h3>Score Distribution</h3></div>
+    <div class="bar-chart" id="score-chart"></div>
+  </div>
+  <div style="margin-top: 16px; display: flex; gap: 10px;">
+    <button class="secondary" onclick="exportData('tasks','json')">Export Tasks (JSON)</button>
+    <button class="secondary" onclick="exportData('tasks','csv')">Export Tasks (CSV)</button>
+    <button class="secondary" onclick="exportData('memories','json')">Export Memories</button>
+  </div>
+</div>
+
+<!-- API Keys Panel -->
+<div class="panel" id="panel-keys">
+  <div class="input-row">
+    <input type="text" id="key-name" placeholder="Key name (e.g. my-app)" />
+    <input type="number" id="key-rate" placeholder="Rate limit/min" value="60" style="width:140px;flex:0 0 auto" />
+    <button onclick="createKey()">Create Key</button>
+  </div>
+  <div id="key-list"></div>
+</div>
+
+<!-- Webhooks Panel -->
+<div class="panel" id="panel-webhooks">
+  <div class="input-row">
+    <input type="text" id="wh-name" placeholder="Webhook name" />
+    <input type="text" id="wh-url" placeholder="https://your-url.com/webhook" />
+    <button onclick="createWebhook()">Add</button>
+  </div>
+  <div id="webhook-list"></div>
+</div>
+
 </div>
 
 <script>
 const API = '';
-
-// API key management
 const keyInput = document.getElementById('api-key-input');
 keyInput.value = localStorage.getItem('voree_api_key') || '';
 keyInput.addEventListener('input', () => localStorage.setItem('voree_api_key', keyInput.value));
 function getKey() { return keyInput.value; }
 function authHeaders() { return {'Content-Type': 'application/json', 'X-API-Key': getKey()}; }
+function authOnly() { return {'X-API-Key': getKey()}; }
 
 // Tabs
 document.querySelectorAll('.tab').forEach(tab => {
@@ -165,30 +236,19 @@ document.querySelectorAll('.tab').forEach(tab => {
     document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
     tab.classList.add('active');
     document.getElementById('panel-' + tab.dataset.panel).classList.add('active');
-    if (tab.dataset.panel === 'tasks') loadTasks();
-    if (tab.dataset.panel === 'sessions') loadSessions();
-    if (tab.dataset.panel === 'memories') loadMemories();
+    const loaders = {tasks:loadTasks, sessions:loadSessions, memories:loadMemories, documents:loadDocs, analytics:loadAnalytics, keys:loadKeys, webhooks:loadWebhooks};
+    if (loaders[tab.dataset.panel]) loaders[tab.dataset.panel]();
   });
 });
 
-// Health check
+// Health
 async function checkHealth() {
   try {
-    const r = await fetch(API + '/health');
-    const d = await r.json();
+    const d = await (await fetch(API + '/health')).json();
     const el = document.getElementById('health-status');
-    if (d.status === 'ok') {
-      el.innerHTML = '<span class="dot"></span> Connected';
-      el.style.color = 'var(--green)';
-    } else {
-      el.innerHTML = '<span class="dot" style="background:var(--yellow)"></span> Degraded';
-      el.style.color = 'var(--yellow)';
-    }
-  } catch {
-    const el = document.getElementById('health-status');
-    el.innerHTML = '<span class="dot" style="background:var(--red)"></span> Disconnected';
-    el.style.color = 'var(--red)';
-  }
+    el.innerHTML = d.status === 'ok' ? '<span class="dot"></span> Connected' : '<span class="dot" style="background:var(--yellow)"></span> Degraded';
+    el.style.color = d.status === 'ok' ? 'var(--green)' : 'var(--yellow)';
+  } catch { document.getElementById('health-status').innerHTML = '<span class="dot" style="background:var(--red)"></span> Disconnected'; }
 }
 
 // Tasks
@@ -198,223 +258,143 @@ async function submitTask() {
   const btn = document.getElementById('task-btn');
   const task = input.value.trim();
   if (!task) return;
-
-  btn.disabled = true;
-  btn.textContent = 'Running...';
+  btn.disabled = true; btn.textContent = 'Running...';
   const resultDiv = document.getElementById('task-result');
-
   if (mode === 'stream') {
-    resultDiv.innerHTML = '<div class="card"><div class="card-header"><h3>Streaming response...</h3></div><div class="result-box" id="stream-output"><span class="stream-indicator"></span></div></div>';
-    const res = await fetch(API + '/api/task/stream', {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify({task})
-    });
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let fullText = '';
-    let buffer = '';
-
-    while (true) {
-      const {value, done} = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, {stream: true});
-      const lines = buffer.split('\n');
-      buffer = lines.pop();
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          try {
-            const data = JSON.parse(line.slice(6));
-            if (typeof data === 'string') {
-              fullText += data;
-              document.getElementById('stream-output').textContent = fullText;
-            }
-          } catch {}
-        }
-      }
-    }
+    resultDiv.innerHTML = '<div class="card"><div class="card-header"><h3>Streaming...</h3></div><div class="result-box" id="stream-output"><span class="stream-indicator"></span></div></div>';
+    const res = await fetch(API + '/api/task/stream', {method:'POST', headers:authHeaders(), body:JSON.stringify({task})});
+    const reader = res.body.getReader(); const decoder = new TextDecoder(); let fullText = '', buffer = '';
+    while (true) { const {value,done} = await reader.read(); if (done) break; buffer += decoder.decode(value,{stream:true}); const lines = buffer.split('\n'); buffer = lines.pop(); for (const line of lines) { if (line.startsWith('data: ')) { try { const data = JSON.parse(line.slice(6)); if (typeof data === 'string') { fullText += data; document.getElementById('stream-output').textContent = fullText; } } catch {} } } }
     document.getElementById('stream-output').textContent = fullText;
   } else {
     resultDiv.innerHTML = '<div class="card"><div class="card-header"><h3>Processing...</h3></div></div>';
-    const res = await fetch(API + '/api/task', {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify({task})
-    });
-    const d = await res.json();
-    resultDiv.innerHTML = `<div class="card">
-      <div class="card-header">
-        <h3>Result</h3>
-        <div><span class="badge badge-workflow">${d.workflow}</span> <span class="badge badge-score ${d.score < 7 ? 'low' : ''}">${d.score}/10</span>${d.retried ? ' <span class="badge" style="background:#fdcb6e22;color:var(--yellow)">retried</span>' : ''}</div>
-      </div>
-      <div class="meta">${d.memories_used} memories used</div>
-      <div class="result-box">${escapeHtml(d.result)}</div>
-    </div>`;
+    const d = await (await fetch(API + '/api/task', {method:'POST', headers:authHeaders(), body:JSON.stringify({task})})).json();
+    resultDiv.innerHTML = `<div class="card"><div class="card-header"><h3>Result</h3><div><span class="badge badge-workflow">${d.workflow}</span> <span class="badge badge-score ${d.score<7?'low':''}">${d.score}/10</span>${d.retried?' <span class="badge" style="background:#fdcb6e22;color:var(--yellow)">retried</span>':''}</div></div><div class="meta">${d.memories_used} memories used${d.tools_used?.length ? ` · ${d.tools_used.length} tools called` : ''}</div><div class="result-box">${esc(d.result)}</div></div>`;
   }
-
-  btn.disabled = false;
-  btn.textContent = 'Run';
-  input.value = '';
-  loadTasks();
+  btn.disabled = false; btn.textContent = 'Run'; input.value = ''; loadTasks();
 }
-
 async function loadTasks() {
-  const res = await fetch(API + '/api/tasks?limit=20', {headers: {'X-API-Key': getKey()}});
-  const tasks = await res.json();
-  const list = document.getElementById('task-list');
+  try { const tasks = await (await fetch(API + '/api/tasks?limit=20', {headers:authOnly()})).json(); const list = document.getElementById('task-list');
   if (!tasks.length) { list.innerHTML = '<div class="empty">No tasks yet</div>'; return; }
-  list.innerHTML = tasks.map(t => `<div class="card session-item" onclick="viewTask(${t.id})">
-    <div class="card-header">
-      <h3>${escapeHtml(t.task.substring(0, 60))}${t.task.length > 60 ? '...' : ''}</h3>
-      <div><span class="badge badge-workflow">${t.workflow}</span>${t.score ? ` <span class="badge badge-score ${t.score < 7 ? 'low' : ''}">${t.score}/10</span>` : ''}</div>
-    </div>
-    <div class="meta">${new Date(t.created_at).toLocaleString()}</div>
-  </div>`).join('');
+  list.innerHTML = tasks.map(t => `<div class="card session-item" onclick="viewTask(${t.id})"><div class="card-header"><h3>${esc(t.task.substring(0,60))}${t.task.length>60?'...':''}</h3><div><span class="badge badge-workflow">${t.workflow}</span>${t.score?` <span class="badge badge-score ${t.score<7?'low':''}">${t.score}/10</span>`:''}</div></div><div class="meta">${new Date(t.created_at).toLocaleString()}</div></div>`).join('');
+  } catch {}
 }
-
 async function viewTask(id) {
-  const res = await fetch(API + '/api/tasks/' + id, {headers: {'X-API-Key': getKey()}});
-  const d = await res.json();
-  document.getElementById('task-result').innerHTML = `<div class="card">
-    <div class="card-header">
-      <h3>${escapeHtml(d.task)}</h3>
-      <div><span class="badge badge-workflow">${d.workflow}</span>${d.score ? ` <span class="badge badge-score ${d.score < 7 ? 'low' : ''}">${d.score}/10</span>` : ''}</div>
-    </div>
-    ${d.critique_feedback ? `<div class="meta" style="margin-bottom:8px"><strong>Critique:</strong> ${escapeHtml(d.critique_feedback)}</div>` : ''}
-    <div class="result-box">${escapeHtml(d.result)}</div>
-  </div>`;
+  const d = await (await fetch(API + '/api/tasks/' + id, {headers:authOnly()})).json();
+  document.getElementById('task-result').innerHTML = `<div class="card"><div class="card-header"><h3>${esc(d.task)}</h3><div><span class="badge badge-workflow">${d.workflow}</span>${d.score?` <span class="badge badge-score ${d.score<7?'low':''}">${d.score}/10</span>`:''}</div></div>${d.critique_feedback?`<div class="meta" style="margin-bottom:8px"><strong>Critique:</strong> ${esc(d.critique_feedback)}</div>`:''}<div class="result-box">${esc(d.result)}</div></div>`;
 }
 
 // Sessions
 let currentSession = null;
-
 async function loadSessions() {
-  const res = await fetch(API + '/api/sessions', {headers: {'X-API-Key': getKey()}});
-  const sessions = await res.json();
-  const list = document.getElementById('session-list');
+  try { const sessions = await (await fetch(API + '/api/sessions', {headers:authOnly()})).json(); const list = document.getElementById('session-list');
   if (!sessions.length) { list.innerHTML = '<div class="empty">No sessions</div>'; return; }
-  list.innerHTML = sessions.map(s => `<div class="card session-item ${currentSession === s.id ? 'active' : ''}" onclick="openSession(${s.id})">
-    <h3 style="font-size:13px;margin-bottom:4px">${escapeHtml((s.title || 'Untitled').substring(0, 40))}</h3>
-    <div class="meta">${s.message_count} messages &middot; ${s.workflow}</div>
-  </div>`).join('');
+  list.innerHTML = sessions.map(s => `<div class="card session-item ${currentSession===s.id?'active':''}" onclick="openSession(${s.id})"><h3 style="font-size:13px;margin-bottom:4px">${esc((s.title||'Untitled').substring(0,40))}</h3><div class="meta">${s.message_count} msgs · ${s.workflow}</div></div>`).join('');
+  } catch {}
 }
-
 async function openSession(id) {
-  currentSession = id;
-  const res = await fetch(API + '/api/sessions/' + id, {headers: {'X-API-Key': getKey()}});
-  const s = await res.json();
-  const chat = document.getElementById('chat-messages');
-  chat.innerHTML = s.messages.map(m =>
-    `<div class="chat-msg ${m.role}">${escapeHtml(m.content)}</div>`
-  ).join('');
-  chat.scrollTop = chat.scrollHeight;
-  document.getElementById('chat-input').disabled = false;
-  document.getElementById('chat-btn').disabled = false;
-  loadSessions();
+  currentSession = id; const s = await (await fetch(API + '/api/sessions/' + id, {headers:authOnly()})).json(); const chat = document.getElementById('chat-messages');
+  chat.innerHTML = s.messages.map(m => `<div class="chat-msg ${m.role}">${esc(m.content)}</div>`).join('');
+  chat.scrollTop = chat.scrollHeight; document.getElementById('chat-input').disabled = false; document.getElementById('chat-btn').disabled = false; loadSessions();
 }
-
-async function newSession() {
-  const msg = prompt('Start a new session with:');
-  if (!msg) return;
-  const res = await fetch(API + '/api/sessions', {
-    method: 'POST',
-    headers: authHeaders(),
-    body: JSON.stringify({message: msg})
-  });
-  const s = await res.json();
-  currentSession = s.id;
-  openSession(s.id);
-}
-
+async function newSession() { const msg = prompt('Start a new session with:'); if (!msg) return; const s = await (await fetch(API + '/api/sessions', {method:'POST', headers:authHeaders(), body:JSON.stringify({message:msg})})).json(); currentSession = s.id; openSession(s.id); }
 async function sendReply() {
-  if (!currentSession) return;
-  const input = document.getElementById('chat-input');
-  const msg = input.value.trim();
-  if (!msg) return;
-
-  const chat = document.getElementById('chat-messages');
-  chat.innerHTML += `<div class="chat-msg user">${escapeHtml(msg)}</div>`;
-  chat.innerHTML += `<div class="chat-msg assistant loading" id="typing">Thinking...</div>`;
-  chat.scrollTop = chat.scrollHeight;
-  input.value = '';
-  document.getElementById('chat-btn').disabled = true;
-
-  const res = await fetch(API + '/api/sessions/' + currentSession + '/reply', {
-    method: 'POST',
-    headers: authHeaders(),
-    body: JSON.stringify({message: msg})
-  });
-  const d = await res.json();
-  document.getElementById('typing').remove();
-  chat.innerHTML += `<div class="chat-msg assistant">${escapeHtml(d.content)}</div>`;
-  chat.scrollTop = chat.scrollHeight;
-  document.getElementById('chat-btn').disabled = false;
+  if (!currentSession) return; const input = document.getElementById('chat-input'); const msg = input.value.trim(); if (!msg) return;
+  const chat = document.getElementById('chat-messages'); chat.innerHTML += `<div class="chat-msg user">${esc(msg)}</div><div class="chat-msg assistant loading" id="typing">Thinking...</div>`; chat.scrollTop = chat.scrollHeight; input.value = ''; document.getElementById('chat-btn').disabled = true;
+  const d = await (await fetch(API + '/api/sessions/' + currentSession + '/reply', {method:'POST', headers:authHeaders(), body:JSON.stringify({message:msg})})).json();
+  document.getElementById('typing').remove(); chat.innerHTML += `<div class="chat-msg assistant">${esc(d.content)}</div>`; chat.scrollTop = chat.scrollHeight; document.getElementById('chat-btn').disabled = false;
 }
 
 // Memories
-async function loadMemories() {
-  const res = await fetch(API + '/api/memories?limit=50', {headers: {'X-API-Key': getKey()}});
-  const mems = await res.json();
-  renderMemories(mems, document.getElementById('memory-list'));
+async function loadMemories() { try { const mems = await (await fetch(API + '/api/memories?limit=50', {headers:authOnly()})).json(); renderMems(mems); } catch {} }
+function renderMems(mems) { const el = document.getElementById('memory-list'); if (!mems.length) { el.innerHTML = '<div class="empty">No memories</div>'; return; } el.innerHTML = mems.map(m => `<div class="card" id="mem-${m.id}"><div class="card-header"><div class="meta">Memory #${m.id} · ${new Date(m.created_at).toLocaleString()}</div><button class="danger sm" onclick="deleteMemory(${m.id})">Delete</button></div><div style="font-size:13px;line-height:1.5">${esc(m.content)}</div></div>`).join(''); }
+async function addMemory() { const input = document.getElementById('memory-input'); const content = input.value.trim(); if (!content) return; await fetch(API + '/api/memories', {method:'POST', headers:authHeaders(), body:JSON.stringify({content})}); input.value = ''; loadMemories(); }
+async function searchMemories() { const q = document.getElementById('memory-search').value.trim(); if (!q) { loadMemories(); return; } const mems = await (await fetch(API + '/api/memories/search', {method:'POST', headers:authHeaders(), body:JSON.stringify({query:q, k:10})})).json(); renderMems(mems); }
+async function deleteMemory(id) { await fetch(API + '/api/memories/' + id, {method:'DELETE', headers:authOnly()}); const el = document.getElementById('mem-' + id); if (el) el.remove(); }
+
+// Documents
+async function loadDocs() {
+  try { const docs = await (await fetch(API + '/api/documents', {headers:authOnly()})).json(); const list = document.getElementById('doc-list');
+  if (!docs.length) { list.innerHTML = '<div class="empty">No documents uploaded</div>'; return; }
+  list.innerHTML = docs.map(d => `<div class="card"><div class="card-header"><h3>${esc(d.filename)}</h3><button class="danger sm" onclick="deleteDoc(${d.id})">Delete</button></div><div class="meta">${d.chunk_count} chunks · ${(d.size_bytes/1024).toFixed(1)} KB · ${new Date(d.created_at).toLocaleString()}</div></div>`).join('');
+  } catch {}
+}
+async function uploadDoc(input) {
+  const file = input.files[0]; if (!file) return;
+  const zone = document.getElementById('upload-zone'); zone.textContent = 'Uploading...';
+  const fd = new FormData(); fd.append('file', file);
+  await fetch(API + '/api/documents', {method:'POST', headers:{'X-API-Key': getKey()}, body:fd});
+  zone.textContent = 'Click to upload a document (.txt, .md)'; input.value = ''; loadDocs();
+}
+async function deleteDoc(id) { await fetch(API + '/api/documents/' + id, {method:'DELETE', headers:authOnly()}); loadDocs(); }
+async function searchDocs() {
+  const q = document.getElementById('doc-search').value.trim(); if (!q) { document.getElementById('doc-search-results').innerHTML = ''; return; }
+  const chunks = await (await fetch(API + '/api/documents/search', {method:'POST', headers:authHeaders(), body:JSON.stringify({query:q, k:5})})).json();
+  document.getElementById('doc-search-results').innerHTML = chunks.map(c => `<div class="card"><div class="card-header"><div class="meta">${esc(c.filename)} · chunk ${c.chunk_index+1}</div></div><div style="font-size:13px;line-height:1.5">${esc(c.content)}</div></div>`).join('');
 }
 
-function renderMemories(mems, el) {
-  if (!mems.length) { el.innerHTML = '<div class="empty">No memories</div>'; return; }
-  el.innerHTML = mems.map(m => `<div class="card" id="mem-${m.id}">
-    <div class="card-header">
-      <div class="meta">Memory #${m.id} &middot; ${new Date(m.created_at).toLocaleString()}</div>
-      <button class="danger" style="padding:4px 10px;font-size:12px" onclick="deleteMemory(${m.id})">Delete</button>
-    </div>
-    <div class="memory-content">${escapeHtml(m.content)}</div>
-  </div>`).join('');
+// Analytics
+async function loadAnalytics() {
+  try { const s = await (await fetch(API + '/api/stats', {headers:authOnly()})).json();
+  document.getElementById('stats-grid').innerHTML = `
+    <div class="stat-card"><div class="stat-value">${s.tasks.total}</div><div class="stat-label">Total Tasks</div></div>
+    <div class="stat-card"><div class="stat-value">${s.tasks.avg_score || '-'}</div><div class="stat-label">Avg Score</div></div>
+    <div class="stat-card"><div class="stat-value">${s.memories.total}</div><div class="stat-label">Memories</div></div>
+    <div class="stat-card"><div class="stat-value">${s.sessions.total}</div><div class="stat-label">Sessions</div></div>
+    <div class="stat-card"><div class="stat-value">${s.sessions.total_messages}</div><div class="stat-label">Messages</div></div>`;
+  // Workflow chart
+  const wf = s.tasks.workflow_breakdown; const wfMax = Math.max(...Object.values(wf), 1);
+  document.getElementById('workflow-chart').innerHTML = Object.entries(wf).map(([k,v]) => `<div class="bar-col"><div class="bar-value">${v}</div><div class="bar" style="height:${(v/wfMax)*100}px"></div><div class="bar-label">${k.replace('_v1','')}</div></div>`).join('') || '<div class="empty" style="padding:20px">No data</div>';
+  // Score chart
+  const sc = s.tasks.score_distribution; const scMax = Math.max(...Object.values(sc), 1);
+  document.getElementById('score-chart').innerHTML = Object.entries(sc).map(([k,v]) => `<div class="bar-col"><div class="bar-value">${v}</div><div class="bar" style="height:${(v/scMax)*100}px;background:${k>=7?'var(--green)':'var(--red)'}"></div><div class="bar-label">${k}/10</div></div>`).join('') || '<div class="empty" style="padding:20px">No data</div>';
+  } catch {}
 }
+function exportData(type, fmt) { window.open(API + `/api/export/${type}?format=${fmt}&` + new URLSearchParams({'X-API-Key': getKey()}), '_blank'); }
 
-async function addMemory() {
-  const input = document.getElementById('memory-input');
-  const content = input.value.trim();
-  if (!content) return;
-  await fetch(API + '/api/memories', {
-    method: 'POST',
-    headers: authHeaders(),
-    body: JSON.stringify({content})
-  });
-  input.value = '';
-  loadMemories();
+// API Keys
+async function loadKeys() {
+  try { const keys = await (await fetch(API + '/api/keys', {headers:authOnly()})).json(); const list = document.getElementById('key-list');
+  if (!keys.length) { list.innerHTML = '<div class="empty">No API keys</div>'; return; }
+  list.innerHTML = keys.map(k => `<div class="card"><div class="card-header"><h3>${esc(k.name)}</h3><div><span class="badge ${k.is_active?'badge-active':'badge-inactive'}">${k.is_active?'Active':'Revoked'}</span> <span class="badge badge-workflow">${k.rate_limit}/min</span>${k.is_active?` <button class="danger sm" onclick="revokeKey(${k.id})">Revoke</button>`:''}</div></div><div class="meta">ID: ${k.id} · Created: ${new Date(k.created_at).toLocaleString()}</div>${k.key?`<div class="result-box" style="margin-top:8px;font-family:monospace;font-size:12px">${k.key}</div>`:''}</div>`).join('');
+  } catch {}
 }
-
-async function searchMemories() {
-  const query = document.getElementById('memory-search').value.trim();
-  if (!query) { loadMemories(); return; }
-  const res = await fetch(API + '/api/memories/search', {
-    method: 'POST',
-    headers: authHeaders(),
-    body: JSON.stringify({query, k: 10})
-  });
-  const mems = await res.json();
-  renderMemories(mems, document.getElementById('memory-list'));
+async function createKey() {
+  const name = document.getElementById('key-name').value.trim(); if (!name) return;
+  const rate = parseInt(document.getElementById('key-rate').value) || 60;
+  const res = await (await fetch(API + '/api/keys', {method:'POST', headers:authHeaders(), body:JSON.stringify({name, rate_limit:rate})})).json();
+  document.getElementById('key-name').value = '';
+  // Show the new key prominently
+  const list = document.getElementById('key-list');
+  list.innerHTML = `<div class="card" style="border-color:var(--green)"><div class="card-header"><h3>New key created: ${esc(res.name)}</h3></div><div class="result-box" style="font-family:monospace;font-size:13px;color:var(--green)">${res.key}</div><div class="meta" style="margin-top:8px">Copy this key now — it won't be shown again.</div></div>` + list.innerHTML;
+  loadKeys();
 }
+async function revokeKey(id) { if (!confirm('Revoke this key? This cannot be undone.')) return; await fetch(API + '/api/keys/' + id, {method:'DELETE', headers:authOnly()}); loadKeys(); }
 
-async function deleteMemory(id) {
-  await fetch(API + '/api/memories/' + id, {method: 'DELETE', headers: {'X-API-Key': getKey()}});
-  const el = document.getElementById('mem-' + id);
-  if (el) el.remove();
+// Webhooks
+async function loadWebhooks() {
+  try { const hooks = await (await fetch(API + '/api/webhooks', {headers:authOnly()})).json(); const list = document.getElementById('webhook-list');
+  if (!hooks.length) { list.innerHTML = '<div class="empty">No webhooks configured</div>'; return; }
+  list.innerHTML = hooks.map(h => `<div class="card"><div class="card-header"><h3>${esc(h.name)}</h3><div><span class="badge ${h.is_active?'badge-active':'badge-inactive'}">${h.is_active?'Active':'Paused'}</span> <button class="secondary sm" onclick="testWebhook(${h.id})">Test</button> <button class="danger sm" onclick="deleteWebhook(${h.id})">Delete</button></div></div><div class="meta">${esc(h.url)}</div><div class="meta">Event: ${h.event} ${h.has_secret?'· Signed':'· Unsigned'}</div></div>`).join('');
+  } catch {}
 }
+async function createWebhook() {
+  const name = document.getElementById('wh-name').value.trim(); const url = document.getElementById('wh-url').value.trim(); if (!name || !url) return;
+  await fetch(API + '/api/webhooks', {method:'POST', headers:authHeaders(), body:JSON.stringify({name, url, event:'task.completed'})});
+  document.getElementById('wh-name').value = ''; document.getElementById('wh-url').value = ''; loadWebhooks();
+}
+async function testWebhook(id) { await fetch(API + '/api/webhooks/' + id + '/test', {method:'POST', headers:authOnly()}); alert('Test webhook sent!'); }
+async function deleteWebhook(id) { await fetch(API + '/api/webhooks/' + id, {method:'DELETE', headers:authOnly()}); loadWebhooks(); }
 
-// Enter key handlers
+// Enter keys
 document.getElementById('task-input').addEventListener('keydown', e => { if (e.key === 'Enter') submitTask(); });
 document.getElementById('chat-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendReply(); });
 document.getElementById('memory-search').addEventListener('keydown', e => { if (e.key === 'Enter') searchMemories(); });
+document.getElementById('doc-search').addEventListener('keydown', e => { if (e.key === 'Enter') searchDocs(); });
 
-function escapeHtml(s) {
-  const d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
-}
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
-// Init
-checkHealth();
-loadTasks();
-setInterval(checkHealth, 30000);
+checkHealth(); loadTasks(); setInterval(checkHealth, 30000);
 </script>
 </body>
 </html>
