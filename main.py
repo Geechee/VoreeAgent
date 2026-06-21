@@ -20,6 +20,7 @@ from critic import critique
 from db import check_connection, get_db, init_db
 from memory import retrieve_memories, store_memory
 from rag import ingest_document, retrieve_chunks
+from scheduler import start_scheduler, stop_scheduler
 from webhooks import fire_task_completed
 from worker import submit_task
 from workflows import BUILTIN_WORKFLOWS, select_workflow
@@ -27,8 +28,10 @@ from workflows import BUILTIN_WORKFLOWS, select_workflow
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()  # enable pgvector + create tables on startup
+    init_db()
+    start_scheduler()
     yield
+    stop_scheduler()
 
 
 app = FastAPI(title="VOREE Agent Framework", version="1.1", lifespan=lifespan)
@@ -779,6 +782,114 @@ def get_key_usage(key_id: int, db: Session = Depends(get_db), _key=Depends(requi
         "remaining_this_minute": max(0, (row.rate_limit or 60) - last_minute),
         "top_endpoints": {ep: cnt for ep, cnt in top_endpoints},
     }
+
+
+# ── Scheduled tasks ──
+
+
+class ScheduleCreate(BaseModel):
+    name: str
+    task: str
+    cron: str
+    chain_roles: Optional[str] = None
+
+
+class ScheduleUpdate(BaseModel):
+    task: Optional[str] = None
+    cron: Optional[str] = None
+    chain_roles: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class ScheduleOut(BaseModel):
+    id: int
+    name: str
+    task: str
+    cron: str
+    chain_roles: Optional[str]
+    is_active: bool
+    last_run_at: Optional[str]
+    next_run_at: Optional[str]
+    run_count: int
+    created_at: str
+
+
+@app.post("/api/schedules", response_model=ScheduleOut, status_code=201)
+def create_schedule(req: ScheduleCreate, db: Session = Depends(get_db), _key=Depends(require_key)):
+    from croniter import croniter
+    if not croniter.is_valid(req.cron):
+        raise HTTPException(status_code=400, detail=f"Invalid cron expression: {req.cron}")
+    from scheduler import _compute_next_run
+    next_run = _compute_next_run(req.cron)
+    sched = models.Schedule(
+        name=req.name, task=req.task, cron=req.cron,
+        chain_roles=req.chain_roles, next_run_at=next_run,
+    )
+    db.add(sched)
+    db.commit()
+    db.refresh(sched)
+    return _sched_out(sched)
+
+
+@app.get("/api/schedules", response_model=List[ScheduleOut])
+def list_schedules(db: Session = Depends(get_db), _key=Depends(require_key)):
+    rows = db.query(models.Schedule).order_by(desc(models.Schedule.created_at)).all()
+    return [_sched_out(r) for r in rows]
+
+
+@app.put("/api/schedules/{schedule_id}", response_model=ScheduleOut)
+def update_schedule(schedule_id: int, req: ScheduleUpdate, db: Session = Depends(get_db), _key=Depends(require_key)):
+    sched = db.query(models.Schedule).filter(models.Schedule.id == schedule_id).first()
+    if not sched:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    if req.task is not None:
+        sched.task = req.task
+    if req.cron is not None:
+        from croniter import croniter
+        if not croniter.is_valid(req.cron):
+            raise HTTPException(status_code=400, detail=f"Invalid cron expression: {req.cron}")
+        sched.cron = req.cron
+        from scheduler import _compute_next_run
+        sched.next_run_at = _compute_next_run(req.cron)
+    if req.chain_roles is not None:
+        sched.chain_roles = req.chain_roles
+    if req.is_active is not None:
+        sched.is_active = req.is_active
+    db.commit()
+    db.refresh(sched)
+    return _sched_out(sched)
+
+
+@app.delete("/api/schedules/{schedule_id}", status_code=204)
+def delete_schedule(schedule_id: int, db: Session = Depends(get_db), _key=Depends(require_key)):
+    sched = db.query(models.Schedule).filter(models.Schedule.id == schedule_id).first()
+    if not sched:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    db.delete(sched)
+    db.commit()
+
+
+@app.post("/api/schedules/{schedule_id}/run")
+def run_schedule_now(schedule_id: int, db: Session = Depends(get_db), _key=Depends(require_key)):
+    sched = db.query(models.Schedule).filter(models.Schedule.id == schedule_id).first()
+    if not sched:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    task_row = models.Task(input=f"[scheduled:{sched.name}] {sched.task}", status="pending")
+    db.add(task_row)
+    db.commit()
+    db.refresh(task_row)
+    submit_task(task_row.id)
+    return {"status": "submitted", "task_id": task_row.id, "schedule": sched.name}
+
+
+def _sched_out(s) -> ScheduleOut:
+    return ScheduleOut(
+        id=s.id, name=s.name, task=s.task, cron=s.cron,
+        chain_roles=s.chain_roles, is_active=s.is_active,
+        last_run_at=s.last_run_at.isoformat() if s.last_run_at else None,
+        next_run_at=s.next_run_at.isoformat() if s.next_run_at else None,
+        run_count=s.run_count or 0, created_at=s.created_at.isoformat(),
+    )
 
 
 # ── Webhooks ──

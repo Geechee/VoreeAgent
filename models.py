@@ -123,6 +123,21 @@ class UsageLog(Base):
     api_key = relationship("ApiKey", back_populates="usage_logs")
 
 
+class Schedule(Base):
+    __tablename__ = "schedules"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    task = Column(Text, nullable=False)
+    cron = Column(String, nullable=False)  # cron expression: "0 9 * * *"
+    chain_roles = Column(String, nullable=True)  # comma-separated roles, or null for single agent
+    is_active = Column(Boolean, default=True)
+    last_run_at = Column(DateTime, nullable=True)
+    next_run_at = Column(DateTime, nullable=True)
+    run_count = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Webhook(Base):
     __tablename__ = "webhooks"
 
